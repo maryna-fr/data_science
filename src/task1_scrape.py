@@ -1,80 +1,49 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict
 
 try:
-    from .utils import save_to_json
+    from src.utils import save_to_json
 except ImportError:
     from utils import save_to_json
 
+URL = "https://en.wikipedia.org/wiki/Web_scraping"
+OUTPUT_FILE = "extracted_wikipedia_data.json"
 
-def fetch_wikipedia_page(url: str) -> str:
-    """
-    Fetch the HTML content of the given Wikipedia page.
 
-    Args:
-        url (str): The URL of the Wikipedia page to fetch.
-
-    Returns:
-        str: The HTML content of the page as a string.
-
-    Raises:
-        requests.HTTPError: If the HTTP request returned an unsuccessful status code.
-        requests.RequestException: If there was a network error.
-    """
-    pass
+def fetch_wikipedia_page(url: str = URL) -> str:
+    """Download the HTML of the page and return it as text."""
+    headers = {"User-Agent": "Mozilla/5.0 (student DS lab)"}
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.text
 
 
 def extract_title(soup: BeautifulSoup) -> str:
-    """
-    Extract the title of the Wikipedia page.
-
-    Args:
-        soup (BeautifulSoup): A BeautifulSoup object representing the parsed HTML.
-
-    Returns:
-        str: The title of the page.
-    """
-    pass
+    heading = soup.find("h1", id="firstHeading")
+    return heading.get_text(strip=True) if heading else ""
 
 
 def extract_first_sentence(soup: BeautifulSoup) -> str:
-    """
-    Extract the first sentence of the first paragraph on the Wikipedia page.
+    for p in soup.find_all("p"):
+        text = p.get_text(" ", strip=True)
+        if not text:
+            continue
+        text = re.sub(r"\[\d+\]", "", text)         # remove [1] citations
+        text = re.sub(r"\s+([,.;])", r"\1", text)   # fix spaces before punctuation
+        return re.split(r"(?<=[.!?])\s", text.strip())[0]
+    return ""
 
-    Args:
-        soup (BeautifulSoup): A BeautifulSoup object representing the parsed HTML.
 
-    Returns:
-        str: The first sentence of the first paragraph.
-    """
-    pass
+def main() -> None:
+    html = fetch_wikipedia_page()
+    soup = BeautifulSoup(html, "html.parser")
+    data = {
+        "title": extract_title(soup),
+        "first_sentence": extract_first_sentence(soup),
+    }
+    save_to_json(data, OUTPUT_FILE)
 
 
 if __name__ == "__main__":
-    url = "https://en.wikipedia.org/wiki/Web_scraping"
-    try:
-        page_content = fetch_wikipedia_page(url)
-        soup = BeautifulSoup(page_content, 'html.parser')
-
-        # Extract the title of the page
-        title = extract_title(soup)
-
-        # Extract the first sentence of the first paragraph
-        first_sentence = extract_first_sentence(soup)
-
-        # Combine the extracted data
-        extracted_data = {
-            "title": title,
-            "first_sentence": first_sentence
-        }
-
-        # Print the extracted data
-        print("Extracted Data:", extracted_data)
-
-        # Save the data to a JSON file
-        save_to_json(extracted_data, 'extracted_wikipedia_data.json')
-
-        print("Data successfully saved to extracted_wikipedia_data.json")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    main()

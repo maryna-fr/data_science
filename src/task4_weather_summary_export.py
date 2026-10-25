@@ -1,65 +1,68 @@
 import csv
-from typing import Dict, List, Union, TextIO
 
 try:
-    from .utils import load_json
+    from src.utils import load_json
 except ImportError:
     from utils import load_json
 
+HOT_THRESHOLD = 30.0
+WIND_THRESHOLD = 15.0
 
-def summarize_weather_data(data: List[Dict[str, any]]) -> Dict[str, float]:
-    """
-    Summarize the weather data across all days.
-
-    Args:
-        data (list of dict): The daily weather data.
-
-    Returns:
-        dict: A summary of the key metrics across all days.
-    """
-    pass
+HEADERS = [
+    "Date", "Max Temperature", "Min Temperature", "Precipitation", "Wind Speed",
+    "Humidity", "Weather Description", "Is Hot Day", "Is Windy Day", "Is Rainy Day",
+]
 
 
-def export_to_csv(data: List[Dict[str, any]], file: Union[str, TextIO]) -> None:
-    """
-    Export the summarized weather data to a CSV file or file-like object.
+def summarize_weather_data(daily_data: list) -> dict:
+    n = len(daily_data)
+    if n == 0:
+        return {}
+    return {
+        "average_max_temp": sum(d["max_temperature"] for d in daily_data) / n,
+        "average_min_temp": sum(d["min_temperature"] for d in daily_data) / n,
+        "total_precipitation": sum(d["precipitation"] for d in daily_data),
+        "average_wind_speed": sum(d["wind_speed"] for d in daily_data) / n,
+        "average_humidity": sum(d["humidity"] for d in daily_data) / n,
+        "hot_days": sum(1 for d in daily_data if d["max_temperature"] > HOT_THRESHOLD),
+        "windy_days": sum(1 for d in daily_data if d["wind_speed"] > WIND_THRESHOLD),
+        "rainy_days": sum(1 for d in daily_data if d["precipitation"] > 0),
+    }
 
-    Args:
-        data (list of dict): The daily weather data to export.
-        file (str or file-like object): The name of the CSV file to save the data in, or a file-like object.
-    """
-    headers = ["Date", "Max Temperature", "Min Temperature", "Precipitation", "Wind Speed", "Humidity",
-               "Weather Description", "Is Hot Day", "Is Windy Day", "Is Rainy Day"]
 
-    def write_data(writer: csv.DictWriter) -> None:
-        """Helper function to write rows to the CSV.
-        
-        Args:
-            writer (csv.DictWriter): The CSV writer object.
-        """
-        pass
+def _write_rows(daily_data: list, file_obj) -> None:
+    writer = csv.writer(file_obj)
+    writer.writerow(HEADERS)
+    for d in daily_data:
+        writer.writerow([
+            d["date"],
+            d["max_temperature"],
+            d["min_temperature"],
+            d["precipitation"],
+            d["wind_speed"],
+            d["humidity"],
+            d["weather_description"],
+            d["max_temperature"] > HOT_THRESHOLD,
+            d["wind_speed"] > WIND_THRESHOLD,
+            d["precipitation"] > 0,
+        ])
+
+
+def export_to_csv(daily_data: list, destination) -> None:
+    """destination: file path (str) or file-like object (e.g. StringIO)."""
+    if isinstance(destination, str):
+        with open(destination, "w", newline="", encoding="utf-8") as f:
+            _write_rows(daily_data, f)
+    else:
+        _write_rows(daily_data, destination)
+
+
+def main() -> None:
+    data = load_json("src/tokyo_weather_complex.json")
+    daily = data["daily"]
+    print(summarize_weather_data(daily))
+    export_to_csv(daily, "weather_summary.csv")
 
 
 if __name__ == "__main__":
-    try:
-        # Load the JSON data
-        import os
-        # Get the directory where this script is located
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        json_path = os.path.join(script_dir, "tokyo_weather_complex.json")
-        weather_data = load_json(json_path)
-
-        # Summarize the weather data
-        summary = summarize_weather_data(weather_data['daily'])
-
-        # Print the summary for verification
-        print("Weather Data Summary:")
-        for key, value in summary.items():
-            print(f"{key}: {value}")
-
-        # Export the summarized data to a CSV file
-        export_to_csv(weather_data['daily'], "tokyo_weather_summary.csv")
-
-        print("Data successfully exported to tokyo_weather_summary.csv")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    main()
